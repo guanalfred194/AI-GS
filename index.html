@@ -1,0 +1,1883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAT 智能辅助翻译系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd',
+                            400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8',
+                            800: '#1e40af', 900: '#1e3a8a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --primary-light: #2563eb;
+            --primary-dark: #1e3a8a;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        /* 模块切换 */
+        .module-section { display: none; }
+        .module-section.active { display: block; animation: fadeIn 0.25s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        /* 导航 */
+        .nav-item {
+            position: relative; transition: all 0.2s; cursor: pointer;
+            color: #64748b; font-size: 14px; padding: 8px 16px; border-radius: 8px;
+            white-space: nowrap; font-weight: 500;
+        }
+        .nav-item:hover { color: var(--primary); background: #eff6ff; }
+        .nav-item.active { color: #fff; background: var(--primary); }
+        /* 卡片 */
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        /* 按钮 */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 9px 18px; border-radius: 8px; font-size: 14px; font-weight: 500;
+            cursor: pointer; border: none; transition: all 0.2s; white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-sm { padding: 5px 12px; font-size: 13px; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #10b981; color: #fff; }
+        .btn-success:hover { background: #059669; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* 表单 */
+        textarea, input[type="text"], input[type="password"], select {
+            width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+            border-radius: 8px; font-size: 14px; font-family: inherit;
+            color: var(--text); background: #fff; transition: border-color 0.2s; outline: none;
+        }
+        textarea:focus, input[type="text"]:focus, input[type="password"]:focus, select:focus {
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(30,64,175,0.1);
+        }
+        textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+        select {
+            cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
+        }
+        /* Toast */
+        .toast-container {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        .toast {
+            padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideIn 0.3s ease;
+            max-width: 380px; word-break: break-word; pointer-events: auto;
+        }
+        .toast.success { background: #10b981; }
+        .toast.error { background: #ef4444; }
+        .toast.info { background: var(--primary); }
+        .toast.warning { background: #f59e0b; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        /* Spinner */
+        .spinner {
+            display: inline-block; width: 18px; height: 18px;
+            border: 2.5px solid #e2e8f0; border-top-color: var(--primary);
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Tag */
+        .tag {
+            display: inline-block; padding: 3px 10px; border-radius: 20px;
+            font-size: 12px; font-weight: 500;
+        }
+        .tag-blue { background: #dbeafe; color: #1d4ed8; }
+        .tag-green { background: #d1fae5; color: #065f46; }
+        .tag-purple { background: #ede9fe; color: #6d28d9; }
+        .tag-orange { background: #ffedd5; color: #c2410c; }
+        .tag-gray { background: #f1f5f9; color: #475569; }
+        .tag-red { background: #fee2e2; color: #991b1b; }
+        /* 字幕区 */
+        .subtitle-area {
+            background: #1e293b; border-radius: 12px; padding: 16px; color: #e2e8f0;
+            min-height: 240px; max-height: 360px; overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 16px; line-height: 1.8;
+        }
+        .subtitle-area::-webkit-scrollbar { width: 6px; }
+        .subtitle-area::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .subtitle-line {
+            padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+            animation: fadeInLine 0.3s ease;
+        }
+        @keyframes fadeInLine { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .pulse-dot {
+            width: 10px; height: 10px; border-radius: 50%; background: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        /* 模态弹窗 */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+        .modal {
+            background: #fff; border-radius: 16px; padding: 28px;
+            max-width: 560px; width: 92%; max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        /* 表格 */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th, .data-table td {
+            padding: 10px 12px; text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table th {
+            background: #f8fafc; color: var(--text-secondary);
+            font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .data-table tr:hover td { background: #f8fafc; }
+        .data-table .checkbox-cell { width: 40px; text-align: center; }
+        /* 记忆来源提示 */
+        .memory-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; background: #dbeafe; color: #1d4ed8; margin-top: 6px;
+        }
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .nav-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .nav-scroll::-webkit-scrollbar { display: none; }
+            .card { padding: 16px; }
+            .btn { padding: 7px 14px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- ==================== 顶部导航栏 ==================== -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between h-14">
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <svg class="w-7 h-7 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+                    </svg>
+                    <span class="text-lg font-bold text-primary-800 hidden sm:inline">CAT 智能辅助翻译系统</span>
+                    <span class="text-lg font-bold text-primary-800 sm:hidden">CAT翻译</span>
+                </div>
+                <div class="nav-scroll flex items-center gap-1 overflow-x-auto">
+                    <button class="nav-item active" data-module="translate">文本翻译</button>
+                    <button class="nav-item" data-module="memory">翻译记忆库</button>
+                    <button class="nav-item" data-module="corpus">语料库</button>
+                    <button class="nav-item" data-module="subtitle">实时字幕</button>
+                    <button class="nav-item" data-module="settings">系统设置</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ==================== 主体内容区 ==================== -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+
+        <!-- ========== 模块1：文本翻译 ========== -->
+        <section class="module-section active" id="module-translate">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 左侧：原文输入 -->
+                <div class="card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-700">原文输入</h3>
+                        <select id="sourceLang" class="w-auto text-sm py-1.5 px-3">
+                            <option value="zh">中文</option>
+                            <option value="en">English</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                        </select>
+                    </div>
+                    <textarea id="sourceText" rows="10" placeholder="请输入需要翻译的文本..."></textarea>
+                    <div class="flex items-center justify-between mt-3">
+                        <span class="text-xs text-gray-400" id="charCount">0 字</span>
+                        <div class="flex items-center gap-2">
+                            <button class="btn btn-outline btn-sm" id="swapLangBtn" title="交换源/目标语言">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                                </svg>
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="clearSourceBtn" title="清空输入输出">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                            <button class="btn btn-primary btn-sm" id="translateBtn">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+                                </svg>
+                                翻译
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- 右侧：译文输出 -->
+                <div class="card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-700">译文输出</h3>
+                        <select id="targetLang" class="w-auto text-sm py-1.5 px-3">
+                            <option value="en">English</option>
+                            <option value="zh">中文</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                        </select>
+                    </div>
+                    <div class="relative">
+                        <textarea id="targetText" rows="8" readonly placeholder="翻译结果将显示在这里..." class="bg-gray-50"></textarea>
+                        <div id="memoryMatchHint" class="hidden memory-badge"></div>
+                        <div id="translateLoading" class="absolute inset-0 bg-white/80 rounded-lg flex items-center justify-center hidden">
+                            <div class="flex items-center gap-2 text-primary-700">
+                                <div class="spinner"></div>
+                                <span class="text-sm">翻译中...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-3">
+                        <button class="btn btn-outline btn-sm" id="copyTranslationBtn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            复制译文
+                        </button>
+                        <button class="btn btn-outline btn-sm" id="openCorpusPanelBtn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
+                            查询语料库
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- 语料库快速检索面板（内嵌在翻译页面） -->
+            <div id="corpusQuickPanel" class="card mt-4 hidden">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-700 text-sm">语料库快速检索</h4>
+                    <button class="text-gray-400 hover:text-gray-600 text-lg leading-none" id="closeCorpusPanelBtn">&times;</button>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <input type="text" id="corpusQuickSearch" placeholder="输入关键词检索语料..." class="flex-1">
+                    <select id="corpusQuickCat" class="w-auto text-sm py-1.5 px-3">
+                        <option value="all">全部分类</option>
+                        <option value="商务">商务</option>
+                        <option value="法律">法律</option>
+                        <option value="科技">科技</option>
+                        <option value="文学">文学</option>
+                    </select>
+                </div>
+                <div id="corpusQuickResults" class="max-h-60 overflow-y-auto space-y-2"></div>
+            </div>
+        </section>
+
+        <!-- ========== 模块2：翻译记忆库 ========== -->
+        <section class="module-section" id="module-memory">
+            <div class="card">
+                <!-- 顶部：统计 + 操作 -->
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div class="flex items-center gap-3">
+                        <h3 class="font-semibold text-gray-700">翻译记忆库</h3>
+                        <span class="tag tag-blue" id="memoryCount">共 0 条</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button class="btn btn-outline btn-sm" id="addMemoryBtn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            新增条目
+                        </button>
+                        <button class="btn btn-outline btn-sm" id="importMemoryBtn">导入JSON</button>
+                        <input type="file" id="importMemoryFile" accept=".json" class="hidden">
+                        <button class="btn btn-outline btn-sm" id="exportMemoryBtn">导出JSON</button>
+                        <button class="btn btn-danger btn-sm" id="batchDeleteMemoryBtn" disabled>批量删除</button>
+                    </div>
+                </div>
+                <!-- 搜索 -->
+                <div class="relative mb-4">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input type="text" id="memorySearch" placeholder="搜索原文或译文关键词..." class="pl-10">
+                </div>
+                <!-- 表格 -->
+                <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                    <table class="data-table" id="memoryTable">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-cell"><input type="checkbox" id="selectAllMemory" title="全选"></th>
+                                <th>原文</th>
+                                <th>译文</th>
+                                <th>添加时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="memoryTableBody">
+                            <tr><td colspan="5" class="text-center text-gray-400 py-8">暂无翻译记忆，开始翻译后将自动保存</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 模块3：双语语料库 ========== -->
+        <section class="module-section" id="module-corpus">
+            <div class="card">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <h3 class="font-semibold text-gray-700">双语语料库</h3>
+                    <div class="flex items-center gap-2">
+                        <button class="btn btn-outline btn-sm" id="addCorpusBtn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            添加语料
+                        </button>
+                        <button class="btn btn-outline btn-sm" id="importCorpusCsvBtn">导入CSV</button>
+                        <input type="file" id="importCorpusCsvFile" accept=".csv" class="hidden">
+                        <button class="btn btn-outline btn-sm" id="exportCorpusCsvBtn">导出CSV</button>
+                    </div>
+                </div>
+                <!-- 分类筛选 + 搜索 -->
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <button class="tag tag-blue corpus-filter active" data-cat="all">全部</button>
+                    <button class="tag tag-green corpus-filter" data-cat="商务">商务</button>
+                    <button class="tag tag-purple corpus-filter" data-cat="法律">法律</button>
+                    <button class="tag tag-orange corpus-filter" data-cat="科技">科技</button>
+                    <button class="tag tag-gray corpus-filter" data-cat="文学">文学</button>
+                    <div class="relative flex-1 min-w-[200px]">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input type="text" id="corpusSearch" placeholder="全文检索语料..." class="pl-10">
+                    </div>
+                </div>
+                <!-- 语料列表 -->
+                <div id="corpusList" class="max-h-[500px] overflow-y-auto space-y-2"></div>
+            </div>
+        </section>
+
+        <!-- ========== 模块4：实时字幕翻译 ========== -->
+        <section class="module-section" id="module-subtitle">
+            <div class="card">
+                <h3 class="font-semibold text-gray-700 mb-4">实时字幕翻译</h3>
+                <!-- 控制栏 -->
+                <div class="flex flex-wrap items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                    <button class="btn btn-primary btn-sm" id="startRecordBtn">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z"/><path d="M19 10v1a7 7 0 01-14 0v-1"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                        开始识别
+                    </button>
+                    <button class="btn btn-outline btn-sm hidden" id="pauseRecordBtn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                        </svg>
+                        暂停
+                    </button>
+                    <button class="btn btn-danger btn-sm hidden" id="stopRecordBtn">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                        停止
+                    </button>
+                    <div class="pulse-dot hidden" id="recordingDot"></div>
+                    <select id="subSourceLang" class="w-auto text-sm py-1.5 px-3">
+                        <option value="zh-CN">中文</option>
+                        <option value="en-US">English</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="ko-KR">한국어</option>
+                        <option value="fr-FR">Français</option>
+                        <option value="de-DE">Deutsch</option>
+                    </select>
+                    <span class="text-gray-300 font-bold">→</span>
+                    <select id="subTargetLang" class="w-auto text-sm py-1.5 px-3">
+                        <option value="en">English</option>
+                        <option value="zh">中文</option>
+                        <option value="ja">日本語</option>
+                        <option value="ko">한국어</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                    <button class="btn btn-outline btn-sm" id="clearSubtitleBtn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        清空
+                    </button>
+                    <button class="btn btn-outline btn-sm" id="exportSubtitleBtn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        导出TXT
+                    </button>
+                </div>
+                <!-- 双语字幕对照 -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs text-gray-400 font-medium">源语言字幕</span>
+                            <span class="tag tag-blue text-xs" id="subSourceLabel">中文</span>
+                        </div>
+                        <div class="subtitle-area" id="sourceSubtitleArea">
+                            <p class="text-gray-500 text-center">点击"开始识别"以启用语音识别...</p>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs text-gray-400 font-medium">译文字幕</span>
+                            <span class="tag tag-green text-xs" id="subTargetLabel">English</span>
+                        </div>
+                        <div class="subtitle-area" id="targetSubtitleArea">
+                            <p class="text-gray-500 text-center">等待翻译结果...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== 模块5：系统设置 ========== -->
+        <section class="module-section" id="module-settings">
+            <div class="card max-w-xl mx-auto">
+                <h3 class="font-semibold text-gray-700 mb-4">系统设置</h3>
+                <div class="space-y-5">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 mb-1 block">翻译引擎</label>
+                        <select id="settingsEngine" class="w-auto text-sm py-1.5 px-3">
+                            <option value="mock">模拟翻译（演示用）</option>
+                            <option value="baidu">百度翻译 API</option>
+                            <option value="deepl">DeepL API</option>
+                            <option value="youdao">有道翻译 API</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">选择"模拟翻译"无需配置密钥即可体验全部功能</p>
+                    </div>
+                    <!-- 百度翻译配置 -->
+                    <div id="baiduConfigArea" class="hidden config-area space-y-3">
+                        <div class="border-t border-gray-100 pt-4">
+                            <p class="text-sm font-medium text-gray-600 mb-3">百度翻译 API 配置</p>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-sm text-gray-500 mb-1 block">APP ID</label>
+                                    <input type="text" id="settingsBaiduAppId" placeholder="请输入百度翻译开放平台的 APP ID">
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-500 mb-1 block">密钥（Key）</label>
+                                    <input type="password" id="settingsBaiduKey" placeholder="请输入百度翻译开放平台的密钥">
+                                </div>
+                                <p class="text-xs text-gray-400">
+                                    请前往 <a href="https://fanyi-api.baidu.com/" target="_blank" class="text-primary-600 underline">百度翻译开放平台</a> 注册并获取 API 密钥
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- DeepL 配置 -->
+                    <div id="deeplConfigArea" class="hidden config-area space-y-3">
+                        <div class="border-t border-gray-100 pt-4">
+                            <p class="text-sm font-medium text-gray-600 mb-3">DeepL API 配置</p>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-sm text-gray-500 mb-1 block">API 类型</label>
+                                    <select id="settingsDeeplType" class="w-auto text-sm py-1.5 px-3">
+                                        <option value="free">DeepL API Free（免费）</option>
+                                        <option value="pro">DeepL API Pro（付费）</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-500 mb-1 block">API 密钥（Auth Key）</label>
+                                    <input type="password" id="settingsDeeplKey" placeholder="请输入 DeepL API 密钥">
+                                </div>
+                                <p class="text-xs text-gray-400">
+                                    请前往 <a href="https://www.deepl.com/pro-api" target="_blank" class="text-primary-600 underline">DeepL 开发者平台</a> 注册并获取 API 密钥
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 有道翻译配置 -->
+                    <div id="youdaoConfigArea" class="hidden config-area space-y-3">
+                        <div class="border-t border-gray-100 pt-4">
+                            <p class="text-sm font-medium text-gray-600 mb-3">有道翻译 API 配置</p>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-sm text-gray-500 mb-1 block">APP Key</label>
+                                    <input type="text" id="settingsYoudaoAppId" placeholder="请输入有道智云的 APP Key">
+                                </div>
+                                <div>
+                                    <label class="text-sm text-gray-500 mb-1 block">APP Secret</label>
+                                    <input type="password" id="settingsYoudaoKey" placeholder="请输入有道智云的 APP Secret">
+                                </div>
+                                <p class="text-xs text-gray-400">
+                                    请前往 <a href="https://ai.youdao.com/" target="_blank" class="text-primary-600 underline">有道智云 AI 开放平台</a> 注册并获取 API 密钥
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="saveSettingsBtn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        保存配置
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== 弹窗：新增/编辑记忆条目 ==================== -->
+    <div class="modal-overlay hidden" id="memoryFormModal">
+        <div class="modal">
+            <h3 class="font-semibold text-lg mb-4" id="memoryFormTitle">新增翻译记忆条目</h3>
+            <input type="hidden" id="memoryEditId">
+            <div class="space-y-3">
+                <div>
+                    <label class="text-sm text-gray-500 mb-1 block">原文</label>
+                    <textarea id="memSource" rows="3" placeholder="输入原文..."></textarea>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-500 mb-1 block">译文</label>
+                    <textarea id="memTarget" rows="3" placeholder="输入译文..."></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button class="btn btn-outline btn-sm" id="cancelMemoryFormBtn">取消</button>
+                    <button class="btn btn-primary btn-sm" id="confirmMemoryFormBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 弹窗：新增/编辑语料条目 ==================== -->
+    <div class="modal-overlay hidden" id="corpusFormModal">
+        <div class="modal">
+            <h3 class="font-semibold text-lg mb-4" id="corpusFormTitle">添加语料条目</h3>
+            <input type="hidden" id="corpusEditId">
+            <div class="space-y-3">
+                <div>
+                    <label class="text-sm text-gray-500 mb-1 block">领域标签</label>
+                    <select id="corpusFormCat">
+                        <option value="商务">商务</option>
+                        <option value="法律">法律</option>
+                        <option value="科技">科技</option>
+                        <option value="文学">文学</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-500 mb-1 block">原文</label>
+                    <textarea id="corpusFormSource" rows="3" placeholder="输入原文..."></textarea>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-500 mb-1 block">译文</label>
+                    <textarea id="corpusFormTarget" rows="3" placeholder="输入译文..."></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button class="btn btn-outline btn-sm" id="cancelCorpusFormBtn">取消</button>
+                    <button class="btn btn-primary btn-sm" id="confirmCorpusFormBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== JavaScript 主体 ==================== -->
+    <script>
+    /* ===========================================================================
+     * CAT 智能辅助翻译系统 - 翻译专业期末课程作业
+     * 技术栈: HTML5 + CSS3 + 原生 JavaScript + Tailwind CSS (CDN)
+     * 部署方式: 纯静态单页应用，可直接部署到 GitHub Pages / Vercel / Netlify
+     * 数据存储: 浏览器 localStorage 本地持久化
+     *
+     * 功能模块:
+     *   1. 文本翻译     - 多语言互译 + 翻译记忆库联动 + 语料库快速检索
+     *   2. 翻译记忆库   - 表格展示 / CRUD / 搜索 / JSON导入导出 / 批量删除
+     *   3. 双语语料库   - 分类标签 / CRUD / 全文检索 / CSV导入导出
+     *   4. 实时字幕翻译 - Web Speech API 语音识别 + 实时翻译 + 暂停/导出
+     *   5. 系统设置     - 百度翻译 API 密钥配置
+     * =========================================================================== */
+
+    /* ==================== Toast 通知系统 ==================== */
+    const Toast = {
+        container: document.getElementById('toastContainer'),
+        show(msg, type, duration) {
+            type = type || 'info';
+            duration = duration || 3000;
+            const el = document.createElement('div');
+            el.className = 'toast ' + type;
+            el.textContent = msg;
+            this.container.appendChild(el);
+            setTimeout(function() {
+                el.style.animation = 'fadeOut 0.3s ease forwards';
+                setTimeout(function() { el.remove(); }, 300);
+            }, duration);
+        },
+        success: function(msg) { this.show(msg, 'success'); },
+        error: function(msg) { this.show(msg, 'error'); },
+        info: function(msg) { this.show(msg, 'info'); },
+        warning: function(msg) { this.show(msg, 'warning'); }
+    };
+
+    /* ==================== 工具函数 ==================== */
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    function formatTime(isoStr) {
+        try {
+            var d = new Date(isoStr);
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0') + ' ' +
+                String(d.getHours()).padStart(2, '0') + ':' +
+                String(d.getMinutes()).padStart(2, '0') + ':' +
+                String(d.getSeconds()).padStart(2, '0');
+        } catch (e) { return isoStr; }
+    }
+
+    /* ==================== 导航切换 ==================== */
+    (function() {
+        var navItems = document.querySelectorAll('.nav-item');
+        var sections = document.querySelectorAll('.module-section');
+        navItems.forEach(function(item) {
+            item.addEventListener('click', function() {
+                navItems.forEach(function(n) { n.classList.remove('active'); });
+                item.classList.add('active');
+                sections.forEach(function(s) { s.classList.remove('active'); });
+                document.getElementById('module-' + item.dataset.module).classList.add('active');
+            });
+        });
+    })();
+
+    /* ==================== 系统设置存储 ==================== */
+    var SettingsStore = {
+        key: 'cat_settings',
+        defaults: {
+            engine: 'mock',
+            baiduAppId: '',
+            baiduKey: '',
+            deeplType: 'free',
+            deeplKey: '',
+            youdaoAppId: '',
+            youdaoKey: ''
+        },
+        getAll: function() {
+            try {
+                var data = JSON.parse(localStorage.getItem(this.key));
+                return data ? Object.assign({}, this.defaults, data) : Object.assign({}, this.defaults);
+            } catch (e) { return Object.assign({}, this.defaults); }
+        },
+        save: function(settings) {
+            localStorage.setItem(this.key, JSON.stringify(settings));
+        }
+    };
+
+    /* ==================== 翻译 API 层 ====================
+     * 统一封装翻译接口，支持模拟翻译和百度翻译 API
+     * 用户可在"系统设置"中配置 API 密钥
+     */
+    var TranslateAPI = {
+        // 语言名称映射
+        langNames: {
+            zh: '中文', en: 'English', ja: '日本語', ko: '한국어', fr: 'Français', de: 'Deutsch'
+        },
+
+        // 模拟翻译词典（演示用）
+        mockDict: {
+            '你好': { en: 'Hello', ja: 'こんにちは', ko: '안녕하세요', fr: 'Bonjour', de: 'Hallo' },
+            '谢谢': { en: 'Thank you', ja: 'ありがとう', ko: '감사합니다', fr: 'Merci', de: 'Danke' },
+            '再见': { en: 'Goodbye', ja: 'さようなら', ko: '안녕히 가세요', fr: 'Au revoir', de: 'Auf Wiedersehen' },
+            '早上好': { en: 'Good morning', ja: 'おはようございます', ko: '좋은 아침입니다', fr: 'Bonjour', de: 'Guten Morgen' },
+            '人工智能正在改变世界': { en: 'Artificial intelligence is changing the world', ja: '人工知能は世界を変えている', ko: '인공지능이 세상을 바꾸고 있다', fr: "L'intelligence artificielle change le monde", de: 'Künstliche Intelligenz verändert die Welt' },
+            '机器学习是人工智能的一个重要分支': { en: 'Machine learning is an important branch of artificial intelligence', ja: '機械学習は人工知能の重要な分野です', ko: '머신러닝은 인공지능의 중요한 분야입니다' },
+            '今天的天气真好': { en: 'The weather is really nice today', ja: '今日は本当にいい天気ですね', ko: '오늘 날씨가 정말 좋네요', fr: 'Il fait vraiment beau aujourd\'hui', de: 'Das Wetter ist heute wirklich schön' },
+            '请给我一杯咖啡': { en: 'Please give me a cup of coffee', ja: 'コーヒーを一杯ください', ko: '커피 한 잔 주세요', fr: 'Un café, s\'il vous plaît', de: 'Bitte geben Sie mir eine Tasse Kaffee' },
+            '我们明天有个重要的会议': { en: 'We have an important meeting tomorrow', ja: '明日重要な会議があります', ko: '우리는 내일 중요한 회의가 있습니다', fr: 'Nous avons une réunion importante demain', de: 'Wir haben morgen ein wichtiges Meeting' },
+            'Hello': { zh: '你好', ja: 'こんにちは', ko: '안녕하세요', fr: 'Bonjour', de: 'Hallo' },
+            'Good morning': { zh: '早上好', ja: 'おはようございます', ko: '좋은 아침입니다', fr: 'Bonjour', de: 'Guten Morgen' },
+            'Thank you very much': { zh: '非常感谢', ja: 'どうもありがとうございます', ko: '대단히 감사합니다', fr: 'Merci beaucoup', de: 'Vielen Dank' },
+            'How are you': { zh: '你好吗', ja: 'お元気ですか', ko: '어떻게 지내세요', fr: 'Comment allez-vous', de: 'Wie geht es Ihnen' },
+            'I love you': { zh: '我爱你', ja: '愛しています', ko: '사랑해요', fr: 'Je t\'aime', de: 'Ich liebe dich' }
+        },
+
+        // 模拟翻译
+        mockTranslate: async function(text, sourceLang, targetLang) {
+            await this.delay(600 + Math.random() * 1000);
+            if (sourceLang === targetLang) return text;
+            // 精确匹配词典
+            var trimmed = text.trim();
+            var entry = this.mockDict[trimmed];
+            if (entry && entry[targetLang]) return entry[targetLang];
+            // 部分匹配
+            for (var key in this.mockDict) {
+                if (trimmed.includes(key) && this.mockDict[key][targetLang]) {
+                    return this.mockDict[key][targetLang];
+                }
+            }
+            // 未匹配时返回通用翻译
+            var mockResults = {
+                en: '[EN] Translation of: "' + text + '"',
+                ja: '[JA] 「' + text + '」の翻訳',
+                ko: '[KO] "' + text + '"의 번역',
+                fr: '[FR] Traduction de: "' + text + '"',
+                de: '[DE] Übersetzung von: "' + text + '"',
+                zh: '[ZH] "' + text + '" 的译文'
+            };
+            return mockResults[targetLang] || '[Translation] ' + text;
+        },
+
+        // 百度翻译 API
+        baiduTranslate: async function(text, sourceLang, targetLang) {
+            var settings = SettingsStore.getAll();
+            if (!settings.baiduAppId || !settings.baiduKey) {
+                throw new Error('请先在"系统设置"中配置百度翻译 API 的 APP ID 和密钥');
+            }
+            var salt = Date.now();
+            var signStr = settings.baiduAppId + text + salt + settings.baiduKey;
+            var sign = await this.md5(signStr);
+            var params = new URLSearchParams({
+                q: text,
+                from: sourceLang,
+                to: targetLang,
+                appid: settings.baiduAppId,
+                salt: salt,
+                sign: sign
+            });
+            var res = await fetch('https://fanyi-api.baidu.com/api/trans/vip/translate?' + params.toString());
+            if (!res.ok) throw new Error('网络请求失败，请检查网络连接');
+            var data = await res.json();
+            if (data.error_code) {
+                var errorMsg = {
+                    '52000': '请求成功',
+                    '52001': '请求超时，请重试',
+                    '52002': '系统错误，请重试',
+                    '52003': '未授权用户，请检查 APP ID 和密钥',
+                    '54000': '必填参数为空',
+                    '54001': '签名错误，请检查密钥',
+                    '54003': '访问频率受限，请稍后再试',
+                    '54004': '账户余额不足',
+                    '54005': '长文本请求过于频繁',
+                    '58000': '客户端IP非法',
+                    '58001': '译文语言方向不支持',
+                    '58002': '服务当前已关闭',
+                    '90107': '认证未通过'
+                };
+                throw new Error(errorMsg[data.error_code] || '翻译失败（错误码: ' + data.error_code + '）');
+            }
+            return data.trans_result.map(function(t) { return t.dst; }).join('\n');
+        },
+
+        // DeepL 语言代码映射（DeepL 使用大写两位代码，中文需特殊处理）
+        deeplLangMap: {
+            zh: 'ZH', en: 'EN', ja: 'JA', ko: 'KO', fr: 'FR', de: 'DE'
+        },
+
+        // DeepL API
+        deeplTranslate: async function(text, sourceLang, targetLang) {
+            var settings = SettingsStore.getAll();
+            if (!settings.deeplKey) {
+                throw new Error('请先在"系统设置"中配置 DeepL API 密钥');
+            }
+            var apiUrl = settings.deeplType === 'pro'
+                ? 'https://api.deepl.com/v2/translate'
+                : 'https://api-free.deepl.com/v2/translate';
+            var body = new URLSearchParams({
+                text: text,
+                source_lang: this.deeplLangMap[sourceLang] || sourceLang.toUpperCase(),
+                target_lang: this.deeplLangMap[targetLang] || targetLang.toUpperCase()
+            });
+            var res = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'DeepL-Auth-Key ' + settings.deeplKey,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: body.toString()
+            });
+            if (!res.ok) {
+                if (res.status === 403) throw new Error('DeepL API 密钥无效或无权访问');
+                if (res.status === 456) throw new Error('DeepL 翻译配额已用完');
+                throw new Error('DeepL 请求失败（HTTP ' + res.status + '）');
+            }
+            var data = await res.json();
+            return data.translations.map(function(t) { return t.text; }).join('\n');
+        },
+
+        // 有道翻译 API
+        youdaoTranslate: async function(text, sourceLang, targetLang) {
+            var settings = SettingsStore.getAll();
+            if (!settings.youdaoAppId || !settings.youdaoKey) {
+                throw new Error('请先在"系统设置"中配置有道翻译的 APP Key 和 APP Secret');
+            }
+            // 有道语言代码映射
+            var youdaoLangMap = {
+                zh: 'zh-CHS', en: 'EN', ja: 'JA', ko: 'KO', fr: 'FR', de: 'DE'
+            };
+            var salt = Date.now();
+            // 有道签名规则：截取文本（len<=20取全部，>20取前10+长度+后10），拼接 appKey+salt+密钥
+            var truncated = text.length <= 20 ? text : text.slice(0, 10) + text.length + text.slice(-10);
+            // 注意：有道签名使用 SHA-256
+            var signStr = settings.youdaoAppId + truncated + salt + settings.youdaoKey;
+            var sign = await this.sha256(signStr);
+            var params = new URLSearchParams({
+                q: text,
+                from: youdaoLangMap[sourceLang] || sourceLang,
+                to: youdaoLangMap[targetLang] || targetLang,
+                appKey: settings.youdaoAppId,
+                salt: salt,
+                sign: sign
+            });
+            var res = await fetch('https://openapi.youdao.com/api?' + params.toString());
+            if (!res.ok) throw new Error('网络请求失败，请检查网络连接');
+            var data = await res.json();
+            if (data.errorCode && data.errorCode !== '0') {
+                var youdaoErrors = {
+                    '101': 'APP Key 无效',
+                    '102': '目标语言不支持',
+                    '103': '翻译文本过长',
+                    '108': 'APP Key 无效或访问频率受限',
+                    '111': '开发者账号无效',
+                    '113': '翻译文本不能为空',
+                    '201': '账户余额不足',
+                    '202': '待翻译内容过长',
+                    '401': '账户已欠费',
+                    '411': '访问频率受限'
+                };
+                throw new Error(youdaoErrors[data.errorCode] || '有道翻译失败（错误码: ' + data.errorCode + '）');
+            }
+            return data.translation.join('\n');
+        },
+
+        // 统一翻译入口
+        translate: async function(text, sourceLang, targetLang) {
+            if (!text || !text.trim()) throw new Error('请输入翻译内容');
+            var settings = SettingsStore.getAll();
+            if (settings.engine === 'baidu') {
+                return this.baiduTranslate(text, sourceLang, targetLang);
+            }
+            if (settings.engine === 'deepl') {
+                return this.deeplTranslate(text, sourceLang, targetLang);
+            }
+            if (settings.engine === 'youdao') {
+                return this.youdaoTranslate(text, sourceLang, targetLang);
+            }
+            return this.mockTranslate(text, sourceLang, targetLang);
+        },
+
+        // 实时翻译（字幕用，快速响应）
+        translateRealtime: async function(text, targetLang) {
+            await this.delay(100 + Math.random() * 300);
+            var trimmed = text.trim();
+            for (var key in this.mockDict) {
+                if (trimmed.includes(key) && this.mockDict[key][targetLang]) {
+                    return this.mockDict[key][targetLang];
+                }
+            }
+            return '[' + targetLang.toUpperCase() + '] ' + text;
+        },
+
+        md5: async function(str) {
+            return this.sha256(str);
+        },
+
+        sha256: async function(str) {
+            var encoder = new TextEncoder();
+            var data = encoder.encode(str);
+            var hash = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hash)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        },
+
+        delay: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+    };
+
+    /* ==================== 翻译记忆库存储 ==================== */
+    var MemoryStore = {
+        key: 'cat_translation_memory',
+        getAll: function() {
+            try { return JSON.parse(localStorage.getItem(this.key)) || []; }
+            catch (e) { return []; }
+        },
+        saveAll: function(items) {
+            localStorage.setItem(this.key, JSON.stringify(items));
+        },
+        add: function(source, target, sourceLang, targetLang) {
+            var items = this.getAll();
+            // 去重：完全相同的原文+译文+语言对不重复添加
+            var exists = items.some(function(i) {
+                return i.source === source && i.target === target &&
+                       i.sourceLang === sourceLang && i.targetLang === targetLang;
+            });
+            if (exists) return;
+            items.unshift({
+                id: generateId(),
+                source: source,
+                target: target,
+                sourceLang: sourceLang,
+                targetLang: targetLang,
+                time: new Date().toISOString()
+            });
+            if (items.length > 500) items.length = 500;
+            this.saveAll(items);
+            return items;
+        },
+        update: function(id, source, target) {
+            var items = this.getAll();
+            var idx = items.findIndex(function(i) { return i.id === id; });
+            if (idx === -1) return;
+            items[idx].source = source;
+            items[idx].target = target;
+            items[idx].time = new Date().toISOString();
+            this.saveAll(items);
+        },
+        delete: function(id) {
+            this.saveAll(this.getAll().filter(function(i) { return i.id !== id; }));
+        },
+        deleteBatch: function(ids) {
+            var idSet = new Set(ids);
+            this.saveAll(this.getAll().filter(function(i) { return !idSet.has(i.id); }));
+        },
+        clear: function() { this.saveAll([]); },
+        search: function(keyword) {
+            var kw = keyword.toLowerCase();
+            return this.getAll().filter(function(i) {
+                return i.source.toLowerCase().includes(kw) || i.target.toLowerCase().includes(kw);
+            });
+        },
+        findExact: function(source, sourceLang, targetLang) {
+            return this.getAll().find(function(i) {
+                return i.source === source && i.sourceLang === sourceLang && i.targetLang === targetLang;
+            });
+        },
+        // 导入JSON并去重合并
+        importJSON: function(jsonData) {
+            var items = this.getAll();
+            var existingSet = new Set(items.map(function(i) { return i.source + '|||' + i.target + '|||' + i.sourceLang + '|||' + i.targetLang; }));
+            var added = 0;
+            jsonData.forEach(function(item) {
+                if (!item.source || !item.target) return;
+                var key = item.source + '|||' + item.target + '|||' + (item.sourceLang || '') + '|||' + (item.targetLang || '');
+                if (existingSet.has(key)) return;
+                existingSet.add(key);
+                items.unshift({
+                    id: generateId(),
+                    source: item.source,
+                    target: item.target,
+                    sourceLang: item.sourceLang || '',
+                    targetLang: item.targetLang || '',
+                    time: item.time || new Date().toISOString()
+                });
+                added++;
+            });
+            if (items.length > 500) items.length = 500;
+            this.saveAll(items);
+            return added;
+        }
+    };
+
+    /* ==================== 语料库存储 ==================== */
+    var CorpusStore = {
+        key: 'cat_corpus_data',
+        // 预设语料
+        preset: [
+            { id: 'c1', cat: '商务', source: 'We look forward to establishing a long-term business relationship with your company.', target: '我们期待与贵公司建立长期的业务关系。' },
+            { id: 'c2', cat: '商务', source: 'Please find the attached file for the quarterly financial report.', target: '请查收附件中的季度财务报告。' },
+            { id: 'c3', cat: '商务', source: 'The contract will be renewed automatically upon expiration.', target: '合同到期后将自动续签。' },
+            { id: 'c4', cat: '法律', source: 'All rights reserved. No part of this document may be reproduced without permission.', target: '版权所有，未经许可不得转载。' },
+            { id: 'c5', cat: '法律', source: 'The parties hereto agree to resolve any disputes through arbitration.', target: '双方同意通过仲裁解决任何争议。' },
+            { id: 'c6', cat: '法律', source: 'This agreement shall be governed by the laws of the State of California.', target: '本协议受加利福尼亚州法律管辖。' },
+            { id: 'c7', cat: '科技', source: 'This algorithm uses deep learning to improve the accuracy of speech recognition.', target: '该算法利用深度学习提升语音识别的准确率。' },
+            { id: 'c8', cat: '科技', source: 'The new chip architecture significantly reduces power consumption while increasing performance.', target: '新的芯片架构在提升性能的同时显著降低了功耗。' },
+            { id: 'c9', cat: '科技', source: 'Cloud computing enables businesses to scale their infrastructure on demand.', target: '云计算使企业能够按需扩展其基础设施。' },
+            { id: 'c10', cat: '文学', source: 'It was the best of times, it was the worst of times.', target: '那是最好的时代，也是最坏的时代。' },
+            { id: 'c11', cat: '文学', source: 'Shall I compare thee to a summer\'s day? Thou art more lovely and more temperate.', target: '我能否将你比作夏日？你比夏日更加可爱温婉。' },
+            { id: 'c12', cat: '文学', source: '月光如流水一般，静静地泻在这一片叶子和花上。', target: 'The moonlight was flowing quietly like a stream over the leaves and flowers.' }
+        ],
+        getAll: function() {
+            try {
+                var data = JSON.parse(localStorage.getItem(this.key));
+                return (data && data.length > 0) ? data : this.preset.slice();
+            } catch (e) { return this.preset.slice(); }
+        },
+        saveAll: function(items) {
+            localStorage.setItem(this.key, JSON.stringify(items));
+        },
+        add: function(item) {
+            var items = this.getAll();
+            items.unshift({
+                id: generateId(),
+                cat: item.cat,
+                source: item.source,
+                target: item.target
+            });
+            this.saveAll(items);
+            return items;
+        },
+        update: function(id, data) {
+            var items = this.getAll();
+            var idx = items.findIndex(function(i) { return i.id === id; });
+            if (idx === -1) return;
+            items[idx].cat = data.cat;
+            items[idx].source = data.source;
+            items[idx].target = data.target;
+            this.saveAll(items);
+        },
+        delete: function(id) {
+            this.saveAll(this.getAll().filter(function(i) { return i.id !== id; }));
+        },
+        search: function(keyword, cat) {
+            var items = this.getAll();
+            if (cat && cat !== 'all') {
+                items = items.filter(function(i) { return i.cat === cat; });
+            }
+            if (keyword) {
+                var kw = keyword.toLowerCase();
+                items = items.filter(function(i) {
+                    return i.source.toLowerCase().includes(kw) || i.target.toLowerCase().includes(kw);
+                });
+            }
+            return items;
+        },
+        // CSV 导入
+        importCSV: function(csvText) {
+            var lines = csvText.split(/\r?\n/).filter(function(l) { return l.trim(); });
+            if (lines.length < 2) throw new Error('CSV文件格式不正确，至少需要标题行和一行数据');
+            var items = this.getAll();
+            var added = 0;
+            for (var i = 1; i < lines.length; i++) {
+                var cols = this.parseCSVLine(lines[i]);
+                if (cols.length < 3) continue;
+                items.unshift({
+                    id: generateId(),
+                    cat: cols[0].trim(),
+                    source: cols[1].trim(),
+                    target: cols[2].trim()
+                });
+                added++;
+            }
+            this.saveAll(items);
+            return added;
+        },
+        // CSV 导出
+        exportCSV: function() {
+            var items = this.getAll();
+            var header = '\uFEFF领域标签,原文,译文';
+            var rows = items.map(function(i) {
+                return i.cat + ',' + CSVQuote(i.source) + ',' + CSVQuote(i.target);
+            });
+            return [header].concat(rows).join('\n');
+        },
+        parseCSVLine: function(line) {
+            var result = [];
+            var current = '';
+            var inQuotes = false;
+            for (var i = 0; i < line.length; i++) {
+                var ch = line[i];
+                if (inQuotes) {
+                    if (ch === '"') {
+                        if (i + 1 < line.length && line[i + 1] === '"') {
+                            current += '"';
+                            i++;
+                        } else {
+                            inQuotes = false;
+                        }
+                    } else {
+                        current += ch;
+                    }
+                } else {
+                    if (ch === '"') {
+                        inQuotes = true;
+                    } else if (ch === ',') {
+                        result.push(current);
+                        current = '';
+                    } else {
+                        current += ch;
+                    }
+                }
+            }
+            result.push(current);
+            return result;
+        }
+    };
+
+    function CSVQuote(str) {
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+    }
+
+    /* ==================== 模块1：文本翻译 ==================== */
+    (function() {
+        var sourceLang = document.getElementById('sourceLang');
+        var targetLang = document.getElementById('targetLang');
+        var sourceText = document.getElementById('sourceText');
+        var targetText = document.getElementById('targetText');
+        var charCount = document.getElementById('charCount');
+        var translateBtn = document.getElementById('translateBtn');
+        var swapBtn = document.getElementById('swapLangBtn');
+        var clearBtn = document.getElementById('clearSourceBtn');
+        var copyBtn = document.getElementById('copyTranslationBtn');
+        var loadingEl = document.getElementById('translateLoading');
+        var memoryMatchHint = document.getElementById('memoryMatchHint');
+        var openCorpusBtn = document.getElementById('openCorpusPanelBtn');
+        var closeCorpusBtn = document.getElementById('closeCorpusPanelBtn');
+        var corpusPanel = document.getElementById('corpusQuickPanel');
+        var corpusQuickSearch = document.getElementById('corpusQuickSearch');
+        var corpusQuickCat = document.getElementById('corpusQuickCat');
+        var corpusQuickResults = document.getElementById('corpusQuickResults');
+
+        var debounceTimer = null;
+
+        // 字数统计 + 翻译记忆库实时匹配
+        sourceText.addEventListener('input', function() {
+            charCount.textContent = sourceText.value.length + ' 字';
+            checkMemoryMatch();
+            // 防抖触发即时翻译提示
+            clearTimeout(debounceTimer);
+            if (sourceText.value.trim()) {
+                debounceTimer = setTimeout(function() {
+                    checkMemoryMatch();
+                }, 500);
+            }
+        });
+
+        // 检查翻译记忆库匹配
+        function checkMemoryMatch() {
+            var text = sourceText.value.trim();
+            memoryMatchHint.classList.add('hidden');
+            if (!text) return;
+            var match = MemoryStore.findExact(text, sourceLang.value, targetLang.value);
+            if (match) {
+                targetText.value = match.target;
+                memoryMatchHint.textContent = '来自翻译记忆库';
+                memoryMatchHint.classList.remove('hidden');
+                Toast.info('已从翻译记忆库匹配到译文');
+            }
+        }
+
+        // 语言切换时重新检查记忆匹配
+        sourceLang.addEventListener('change', function() {
+            checkMemoryMatch();
+        });
+        targetLang.addEventListener('change', function() {
+            checkMemoryMatch();
+        });
+
+        // 翻译
+        translateBtn.addEventListener('click', doTranslate);
+
+        async function doTranslate() {
+            var text = sourceText.value.trim();
+            if (!text) { Toast.warning('请输入翻译内容'); return; }
+            loadingEl.classList.remove('hidden');
+            translateBtn.disabled = true;
+            memoryMatchHint.classList.add('hidden');
+            try {
+                var result = await TranslateAPI.translate(text, sourceLang.value, targetLang.value);
+                targetText.value = result;
+                // 自动保存到翻译记忆库
+                MemoryStore.add(text, result, sourceLang.value, targetLang.value);
+                Toast.success('翻译完成');
+            } catch (e) {
+                Toast.error(e.message || '翻译失败，请重试');
+            } finally {
+                loadingEl.classList.add('hidden');
+                translateBtn.disabled = false;
+            }
+        }
+
+        // 交换语言
+        swapBtn.addEventListener('click', function() {
+            var tmp = sourceLang.value;
+            sourceLang.value = targetLang.value;
+            targetLang.value = tmp;
+            if (targetText.value.trim()) {
+                sourceText.value = targetText.value;
+                targetText.value = '';
+                charCount.textContent = sourceText.value.length + ' 字';
+                checkMemoryMatch();
+            }
+            Toast.info('已交换源/目标语言');
+        });
+
+        // 清空
+        clearBtn.addEventListener('click', function() {
+            sourceText.value = '';
+            targetText.value = '';
+            charCount.textContent = '0 字';
+            memoryMatchHint.classList.add('hidden');
+            Toast.info('已清空输入输出');
+        });
+
+        // 复制译文
+        copyBtn.addEventListener('click', function() {
+            if (!targetText.value.trim()) { Toast.warning('没有可复制的译文'); return; }
+            navigator.clipboard.writeText(targetText.value).then(function() {
+                Toast.success('译文已复制到剪贴板');
+            }).catch(function() {
+                // 降级方案
+                targetText.select();
+                document.execCommand('copy');
+                Toast.success('译文已复制到剪贴板');
+            });
+        });
+
+        // 语料库快速检索面板
+        openCorpusBtn.addEventListener('click', function() {
+            corpusPanel.classList.remove('hidden');
+            renderQuickCorpus();
+        });
+        closeCorpusBtn.addEventListener('click', function() {
+            corpusPanel.classList.add('hidden');
+        });
+
+        corpusQuickSearch.addEventListener('input', renderQuickCorpus);
+        corpusQuickCat.addEventListener('change', renderQuickCorpus);
+
+        function renderQuickCorpus() {
+            var kw = corpusQuickSearch.value.trim();
+            var cat = corpusQuickCat.value;
+            var results = CorpusStore.search(kw, cat);
+            if (results.length === 0) {
+                corpusQuickResults.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">暂无匹配语料</p>';
+                return;
+            }
+            corpusQuickResults.innerHTML = results.slice(0, 20).map(function(item) {
+                var tagClass = { '商务': 'tag-green', '法律': 'tag-purple', '科技': 'tag-orange', '文学': 'tag-gray' }[item.cat] || 'tag-blue';
+                return '<div class="border border-gray-100 rounded-lg p-3 hover:bg-gray-50 transition cursor-pointer" onclick="useCorpusInTranslate(\'' + escapeHtml(item.source) + '\',\'' + escapeHtml(item.target) + '\')">' +
+                    '<div class="flex items-center gap-2 mb-1"><span class="tag ' + tagClass + ' text-xs">' + item.cat + '</span></div>' +
+                    '<p class="text-xs text-gray-600"><span class="text-gray-400">原文：</span>' + escapeHtml(item.source) + '</p>' +
+                    '<p class="text-xs text-gray-600"><span class="text-gray-400">译文：</span>' + escapeHtml(item.target) + '</p>' +
+                    '</div>';
+            }).join('');
+        }
+
+        window.useCorpusInTranslate = function(source, target) {
+            targetText.value = target;
+            memoryMatchHint.textContent = '来自语料库';
+            memoryMatchHint.classList.remove('hidden');
+            corpusPanel.classList.add('hidden');
+            Toast.success('已引用语料库译文');
+        };
+    })();
+
+    /* ==================== 模块2：翻译记忆库 UI ==================== */
+    (function() {
+        var tableBody = document.getElementById('memoryTableBody');
+        var searchInput = document.getElementById('memorySearch');
+        var countEl = document.getElementById('memoryCount');
+        var addBtn = document.getElementById('addMemoryBtn');
+        var importBtn = document.getElementById('importMemoryBtn');
+        var importFile = document.getElementById('importMemoryFile');
+        var exportBtn = document.getElementById('exportMemoryBtn');
+        var batchDeleteBtn = document.getElementById('batchDeleteMemoryBtn');
+        var selectAll = document.getElementById('selectAllMemory');
+        var formModal = document.getElementById('memoryFormModal');
+        var formTitle = document.getElementById('memoryFormTitle');
+        var editId = document.getElementById('memoryEditId');
+        var memSource = document.getElementById('memSource');
+        var memTarget = document.getElementById('memTarget');
+        var cancelBtn = document.getElementById('cancelMemoryFormBtn');
+        var confirmBtn = document.getElementById('confirmMemoryFormBtn');
+
+        var selectedIds = new Set();
+
+        function render(keyword) {
+            var items = keyword ? MemoryStore.search(keyword) : MemoryStore.getAll();
+            countEl.textContent = '共 ' + items.length + ' 条';
+            selectedIds.clear();
+            selectAll.checked = false;
+            batchDeleteBtn.disabled = true;
+
+            if (items.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">暂无翻译记忆，开始翻译后将自动保存</td></tr>';
+                return;
+            }
+            tableBody.innerHTML = items.map(function(item) {
+                return '<tr>' +
+                    '<td class="checkbox-cell"><input type="checkbox" class="memory-checkbox" data-id="' + item.id + '"></td>' +
+                    '<td class="max-w-[200px] truncate" title="' + escapeHtml(item.source) + '">' + escapeHtml(item.source) + '</td>' +
+                    '<td class="max-w-[200px] truncate" title="' + escapeHtml(item.target) + '">' + escapeHtml(item.target) + '</td>' +
+                    '<td class="text-gray-500 text-xs whitespace-nowrap">' + formatTime(item.time) + '</td>' +
+                    '<td class="whitespace-nowrap">' +
+                        '<button class="text-primary-600 hover:text-primary-800 text-xs mr-2 edit-memory-btn" data-id="' + item.id + '">编辑</button>' +
+                        '<button class="text-red-500 hover:text-red-700 text-xs delete-memory-btn" data-id="' + item.id + '">删除</button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+
+            // 绑定复选框事件
+            tableBody.querySelectorAll('.memory-checkbox').forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    if (cb.checked) selectedIds.add(cb.dataset.id);
+                    else selectedIds.delete(cb.dataset.id);
+                    batchDeleteBtn.disabled = selectedIds.size === 0;
+                    selectAll.checked = selectedIds.size === items.length;
+                });
+            });
+
+            // 绑定编辑按钮
+            tableBody.querySelectorAll('.edit-memory-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var item = items.find(function(i) { return i.id === btn.dataset.id; });
+                    if (!item) return;
+                    editId.value = item.id;
+                    memSource.value = item.source;
+                    memTarget.value = item.target;
+                    formTitle.textContent = '编辑翻译记忆条目';
+                    formModal.classList.remove('hidden');
+                });
+            });
+
+            // 绑定删除按钮
+            tableBody.querySelectorAll('.delete-memory-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    if (!confirm('确定删除此条翻译记忆？')) return;
+                    MemoryStore.delete(btn.dataset.id);
+                    render(searchInput.value.trim());
+                    Toast.success('已删除');
+                });
+            });
+        }
+
+        // 全选
+        selectAll.addEventListener('change', function() {
+            var items = searchInput.value.trim() ? MemoryStore.search(searchInput.value.trim()) : MemoryStore.getAll();
+            tableBody.querySelectorAll('.memory-checkbox').forEach(function(cb) {
+                cb.checked = selectAll.checked;
+                if (selectAll.checked) selectedIds.add(cb.dataset.id);
+                else selectedIds.delete(cb.dataset.id);
+            });
+            batchDeleteBtn.disabled = selectedIds.size === 0;
+        });
+
+        // 批量删除
+        batchDeleteBtn.addEventListener('click', function() {
+            if (selectedIds.size === 0) return;
+            if (!confirm('确定删除选中的 ' + selectedIds.size + ' 条记忆？此操作不可恢复。')) return;
+            MemoryStore.deleteBatch(Array.from(selectedIds));
+            selectedIds.clear();
+            render(searchInput.value.trim());
+            Toast.success('已批量删除');
+        });
+
+        // 搜索
+        searchInput.addEventListener('input', function() {
+            render(searchInput.value.trim());
+        });
+
+        // 新增
+        addBtn.addEventListener('click', function() {
+            editId.value = '';
+            memSource.value = '';
+            memTarget.value = '';
+            formTitle.textContent = '新增翻译记忆条目';
+            formModal.classList.remove('hidden');
+        });
+
+        // 取消
+        cancelBtn.addEventListener('click', function() { formModal.classList.add('hidden'); });
+        formModal.addEventListener('click', function(e) {
+            if (e.target === formModal) formModal.classList.add('hidden');
+        });
+
+        // 确认保存
+        confirmBtn.addEventListener('click', function() {
+            var source = memSource.value.trim();
+            var target = memTarget.value.trim();
+            if (!source || !target) { Toast.warning('请填写原文和译文'); return; }
+            var id = editId.value;
+            if (id) {
+                MemoryStore.update(id, source, target);
+            } else {
+                MemoryStore.add(source, target, '', '');
+            }
+            memSource.value = '';
+            memTarget.value = '';
+            formModal.classList.add('hidden');
+            render(searchInput.value.trim());
+            Toast.success('记忆条目已保存');
+        });
+
+        // 导出 JSON
+        exportBtn.addEventListener('click', function() {
+            var items = MemoryStore.getAll();
+            if (items.length === 0) { Toast.warning('没有可导出的记忆条目'); return; }
+            var blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'translation_memory_' + new Date().toISOString().slice(0, 10) + '.json';
+            a.click();
+            Toast.success('已导出 ' + items.length + ' 条记忆');
+        });
+
+        // 导入 JSON
+        importBtn.addEventListener('click', function() { importFile.click(); });
+        importFile.addEventListener('change', function() {
+            var file = importFile.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = JSON.parse(e.target.result);
+                    if (!Array.isArray(data)) throw new Error('JSON格式不正确，需要数组格式');
+                    var added = MemoryStore.importJSON(data);
+                    render(searchInput.value.trim());
+                    Toast.success('成功导入 ' + added + ' 条记忆（已自动去重）');
+                } catch (err) {
+                    Toast.error('导入失败：' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            importFile.value = '';
+        });
+
+        render();
+    })();
+
+    /* ==================== 模块3：双语语料库 UI ==================== */
+    (function() {
+        var listEl = document.getElementById('corpusList');
+        var searchInput = document.getElementById('corpusSearch');
+        var filters = document.querySelectorAll('.corpus-filter');
+        var addBtn = document.getElementById('addCorpusBtn');
+        var importCsvBtn = document.getElementById('importCorpusCsvBtn');
+        var importCsvFile = document.getElementById('importCorpusCsvFile');
+        var exportCsvBtn = document.getElementById('exportCorpusCsvBtn');
+        var formModal = document.getElementById('corpusFormModal');
+        var formTitle = document.getElementById('corpusFormTitle');
+        var editId = document.getElementById('corpusEditId');
+        var formCat = document.getElementById('corpusFormCat');
+        var formSource = document.getElementById('corpusFormSource');
+        var formTarget = document.getElementById('corpusFormTarget');
+        var cancelBtn = document.getElementById('cancelCorpusFormBtn');
+        var confirmBtn = document.getElementById('confirmCorpusFormBtn');
+
+        var currentCat = 'all';
+
+        var catTagClasses = { '商务': 'tag-green', '法律': 'tag-purple', '科技': 'tag-orange', '文学': 'tag-gray' };
+
+        function render() {
+            var kw = searchInput.value.trim();
+            var results = CorpusStore.search(kw, currentCat);
+            if (results.length === 0) {
+                listEl.innerHTML = '<p class="text-center text-gray-400 py-8">暂无匹配的语料</p>';
+                return;
+            }
+            listEl.innerHTML = results.map(function(item) {
+                var tagClass = catTagClasses[item.cat] || 'tag-blue';
+                return '<div class="border border-gray-100 rounded-lg p-3 hover:border-primary-300 hover:shadow-sm transition">' +
+                    '<div class="flex items-center justify-between mb-2">' +
+                        '<span class="tag ' + tagClass + ' text-xs">' + item.cat + '</span>' +
+                        '<div class="flex gap-2">' +
+                            '<button class="text-primary-600 hover:text-primary-800 text-xs edit-corpus-btn" data-id="' + item.id + '">编辑</button>' +
+                            '<button class="text-red-500 hover:text-red-700 text-xs delete-corpus-btn" data-id="' + item.id + '">删除</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<p class="text-sm text-gray-700 mb-1"><span class="text-gray-400 text-xs">原文：</span>' + escapeHtml(item.source) + '</p>' +
+                    '<p class="text-sm text-gray-600"><span class="text-gray-400 text-xs">译文：</span>' + escapeHtml(item.target) + '</p>' +
+                '</div>';
+            });
+
+            // 绑定编辑按钮
+            listEl.querySelectorAll('.edit-corpus-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var item = results.find(function(i) { return i.id === btn.dataset.id; });
+                    if (!item) return;
+                    editId.value = item.id;
+                    formCat.value = item.cat;
+                    formSource.value = item.source;
+                    formTarget.value = item.target;
+                    formTitle.textContent = '编辑语料条目';
+                    formModal.classList.remove('hidden');
+                });
+            });
+
+            // 绑定删除按钮
+            listEl.querySelectorAll('.delete-corpus-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (!confirm('确定删除此条语料？')) return;
+                    CorpusStore.delete(btn.dataset.id);
+                    render();
+                    Toast.success('已删除');
+                });
+            });
+        }
+
+        // 分类筛选
+        filters.forEach(function(f) {
+            f.addEventListener('click', function() {
+                filters.forEach(function(ff) { ff.classList.remove('active'); });
+                f.classList.add('active');
+                currentCat = f.dataset.cat;
+                render();
+            });
+        });
+
+        // 搜索
+        searchInput.addEventListener('input', render);
+
+        // 新增
+        addBtn.addEventListener('click', function() {
+            editId.value = '';
+            formCat.value = '商务';
+            formSource.value = '';
+            formTarget.value = '';
+            formTitle.textContent = '添加语料条目';
+            formModal.classList.remove('hidden');
+        });
+
+        // 取消
+        cancelBtn.addEventListener('click', function() { formModal.classList.add('hidden'); });
+        formModal.addEventListener('click', function(e) {
+            if (e.target === formModal) formModal.classList.add('hidden');
+        });
+
+        // 确认保存
+        confirmBtn.addEventListener('click', function() {
+            var cat = formCat.value;
+            var source = formSource.value.trim();
+            var target = formTarget.value.trim();
+            if (!source || !target) { Toast.warning('请填写原文和译文'); return; }
+            var id = editId.value;
+            if (id) {
+                CorpusStore.update(id, { cat: cat, source: source, target: target });
+            } else {
+                CorpusStore.add({ cat: cat, source: source, target: target });
+            }
+            formSource.value = '';
+            formTarget.value = '';
+            formModal.classList.add('hidden');
+            render();
+            Toast.success('语料条目已保存');
+        });
+
+        // 导出 CSV
+        exportCsvBtn.addEventListener('click', function() {
+            var items = CorpusStore.getAll();
+            if (items.length === 0) { Toast.warning('没有可导出的语料'); return; }
+            var csvContent = CorpusStore.exportCSV();
+            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'corpus_' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            Toast.success('已导出 ' + items.length + ' 条语料');
+        });
+
+        // 导入 CSV
+        importCsvBtn.addEventListener('click', function() { importCsvFile.click(); });
+        importCsvFile.addEventListener('change', function() {
+            var file = importCsvFile.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var added = CorpusStore.importCSV(e.target.result);
+                    render();
+                    Toast.success('成功导入 ' + added + ' 条语料');
+                } catch (err) {
+                    Toast.error('导入失败：' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            importCsvFile.value = '';
+        });
+
+        render();
+    })();
+
+    /* ==================== 模块4：实时字幕翻译 ==================== */
+    (function() {
+        var startBtn = document.getElementById('startRecordBtn');
+        var pauseBtn = document.getElementById('pauseRecordBtn');
+        var stopBtn = document.getElementById('stopRecordBtn');
+        var recordingDot = document.getElementById('recordingDot');
+        var sourceArea = document.getElementById('sourceSubtitleArea');
+        var targetArea = document.getElementById('targetSubtitleArea');
+        var subSourceLang = document.getElementById('subSourceLang');
+        var subTargetLang = document.getElementById('subTargetLang');
+        var subSourceLabel = document.getElementById('subSourceLabel');
+        var subTargetLabel = document.getElementById('subTargetLabel');
+        var clearBtn = document.getElementById('clearSubtitleBtn');
+        var exportBtn = document.getElementById('exportSubtitleBtn');
+
+        var recognition = null;
+        var isRecording = false;
+        var isPaused = false;
+        var subtitleLines = [];
+
+        // 检查浏览器支持
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            sourceArea.innerHTML = '<p class="text-yellow-400 text-center py-8">您的浏览器不支持语音识别功能，请使用 Chrome 浏览器</p>';
+            targetArea.innerHTML = '<p class="text-yellow-400 text-center py-8">语音识别功能不可用</p>';
+            startBtn.disabled = true;
+            startBtn.classList.add('opacity-50');
+        }
+
+        // 语言标签更新
+        subSourceLang.addEventListener('change', function() {
+            subSourceLabel.textContent = subSourceLang.options[subSourceLang.selectedIndex].text;
+        });
+        subTargetLang.addEventListener('change', function() {
+            subTargetLabel.textContent = subTargetLang.options[subTargetLang.selectedIndex].text;
+        });
+
+        function addSubtitleLine(source, target) {
+            var time = new Date().toLocaleTimeString();
+            subtitleLines.push({ time: time, source: source, target: target });
+
+            var sourceLine = document.createElement('div');
+            sourceLine.className = 'subtitle-line';
+            sourceLine.innerHTML = '<span class="text-gray-500 text-xs">[' + time + ']</span> ' + escapeHtml(source);
+            sourceArea.appendChild(sourceLine);
+
+            var targetLine = document.createElement('div');
+            targetLine.className = 'subtitle-line';
+            targetLine.innerHTML = '<span class="text-gray-500 text-xs">[' + time + ']</span> ' + escapeHtml(target);
+            targetArea.appendChild(targetLine);
+
+            sourceArea.scrollTop = sourceArea.scrollHeight;
+            targetArea.scrollTop = targetArea.scrollHeight;
+        }
+
+        startBtn.addEventListener('click', async function() {
+            if (!SpeechRecognition) {
+                Toast.error('您的浏览器不支持语音识别功能，请使用 Chrome 浏览器');
+                return;
+            }
+
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (e) {
+                Toast.error('无法访问麦克风，请在浏览器设置中允许麦克风权限');
+                return;
+            }
+
+            if (isPaused && recognition) {
+                // 从暂停恢复
+                isPaused = false;
+                recognition.start();
+                pauseBtn.textContent = '暂停';
+                recordingDot.classList.remove('hidden');
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = subSourceLang.value;
+            recognition.continuous = true;
+            recognition.interimResults = false;
+
+            recognition.onresult = async function(event) {
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        var sourceText = event.results[i][0].transcript.trim();
+                        if (!sourceText) continue;
+                        try {
+                            var targetText = await TranslateAPI.translateRealtime(sourceText, subTargetLang.value);
+                            addSubtitleLine(sourceText, targetText);
+                        } catch (e) {
+                            addSubtitleLine(sourceText, '[翻译失败]');
+                        }
+                    }
+                }
+            };
+
+            recognition.onerror = function(e) {
+                if (e.error === 'no-speech') return;
+                if (e.error === 'aborted') return;
+                Toast.error('语音识别错误: ' + e.error);
+            };
+
+            recognition.onend = function() {
+                if (isRecording && !isPaused) {
+                    try { recognition.start(); } catch (e) {}
+                }
+            };
+
+            recognition.start();
+            isRecording = true;
+            isPaused = false;
+            startBtn.classList.add('hidden');
+            pauseBtn.classList.remove('hidden');
+            stopBtn.classList.remove('hidden');
+            recordingDot.classList.remove('hidden');
+            if (sourceArea.querySelector('.text-center')) sourceArea.innerHTML = '';
+            if (targetArea.querySelector('.text-center')) targetArea.innerHTML = '';
+            Toast.info('语音识别已启动，开始说话...');
+        });
+
+        // 暂停/继续
+        pauseBtn.addEventListener('click', function() {
+            if (!recognition) return;
+            if (isPaused) {
+                // 继续
+                isPaused = false;
+                recognition.start();
+                pauseBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/></svg>暂停';
+                recordingDot.classList.remove('hidden');
+                Toast.info('已恢复识别');
+            } else {
+                // 暂停
+                isPaused = true;
+                recognition.stop();
+                pauseBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>继续';
+                recordingDot.classList.add('hidden');
+                Toast.info('已暂停识别');
+            }
+        });
+
+        // 停止
+        stopBtn.addEventListener('click', function() {
+            isRecording = false;
+            isPaused = false;
+            if (recognition) { recognition.stop(); recognition = null; }
+            startBtn.classList.remove('hidden');
+            pauseBtn.classList.add('hidden');
+            stopBtn.classList.add('hidden');
+            recordingDot.classList.add('hidden');
+            pauseBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/></svg>暂停';
+            Toast.success('识别已停止，共 ' + subtitleLines.length + ' 条字幕');
+        });
+
+        // 清空字幕
+        clearBtn.addEventListener('click', function() {
+            subtitleLines = [];
+            sourceArea.innerHTML = '';
+            targetArea.innerHTML = '';
+            Toast.info('字幕已清空');
+        });
+
+        // 导出 TXT
+        exportBtn.addEventListener('click', function() {
+            if (subtitleLines.length === 0) { Toast.warning('暂无字幕可导出'); return; }
+            var content = '实时字幕翻译记录\n导出时间：' + new Date().toLocaleString() + '\n' + '='.repeat(50) + '\n\n';
+            subtitleLines.forEach(function(line) {
+                content += '[' + line.time + ']\n';
+                content += '源语言：' + line.source + '\n';
+                content += '译文：' + line.target + '\n';
+                content += '-'.repeat(40) + '\n';
+            });
+            var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'subtitles_' + new Date().toISOString().slice(0, 10) + '.txt';
+            a.click();
+            Toast.success('字幕已导出');
+        });
+    })();
+
+    /* ==================== 模块5：系统设置 ==================== */
+    (function() {
+        var engineSelect = document.getElementById('settingsEngine');
+        var baiduAppId = document.getElementById('settingsBaiduAppId');
+        var baiduKey = document.getElementById('settingsBaiduKey');
+        var deeplType = document.getElementById('settingsDeeplType');
+        var deeplKey = document.getElementById('settingsDeeplKey');
+        var youdaoAppId = document.getElementById('settingsYoudaoAppId');
+        var youdaoKey = document.getElementById('settingsYoudaoKey');
+        var saveBtn = document.getElementById('saveSettingsBtn');
+
+        // 配置区映射
+        var configAreas = {
+            baidu: document.getElementById('baiduConfigArea'),
+            deepl: document.getElementById('deeplConfigArea'),
+            youdao: document.getElementById('youdaoConfigArea')
+        };
+
+        // 根据引擎切换显示对应配置区
+        function toggleConfigArea() {
+            Object.keys(configAreas).forEach(function(key) {
+                configAreas[key].classList.add('hidden');
+            });
+            var engine = engineSelect.value;
+            if (configAreas[engine]) {
+                configAreas[engine].classList.remove('hidden');
+            }
+        }
+        engineSelect.addEventListener('change', toggleConfigArea);
+
+        // 加载已有配置
+        var settings = SettingsStore.getAll();
+        engineSelect.value = settings.engine;
+        baiduAppId.value = settings.baiduAppId;
+        baiduKey.value = settings.baiduKey;
+        deeplType.value = settings.deeplType || 'free';
+        deeplKey.value = settings.deeplKey;
+        youdaoAppId.value = settings.youdaoAppId;
+        youdaoKey.value = settings.youdaoKey;
+        toggleConfigArea();
+
+        saveBtn.addEventListener('click', function() {
+            var newSettings = {
+                engine: engineSelect.value,
+                baiduAppId: baiduAppId.value.trim(),
+                baiduKey: baiduKey.value.trim(),
+                deeplType: deeplType.value,
+                deeplKey: deeplKey.value.trim(),
+                youdaoAppId: youdaoAppId.value.trim(),
+                youdaoKey: youdaoKey.value.trim()
+            };
+
+            // 验证所选引擎的密钥
+            if (newSettings.engine === 'baidu' && (!newSettings.baiduAppId || !newSettings.baiduKey)) {
+                Toast.warning('使用百度翻译 API 需要填写 APP ID 和密钥');
+                return;
+            }
+            if (newSettings.engine === 'deepl' && !newSettings.deeplKey) {
+                Toast.warning('使用 DeepL API 需要填写 API 密钥');
+                return;
+            }
+            if (newSettings.engine === 'youdao' && (!newSettings.youdaoAppId || !newSettings.youdaoKey)) {
+                Toast.warning('使用有道翻译 API 需要填写 APP Key 和 APP Secret');
+                return;
+            }
+
+            SettingsStore.save(newSettings);
+            Toast.success('配置已保存');
+        });
+    })();
+
+    /* ==================== 初始化完成 ==================== */
+    console.log('%cCAT 智能辅助翻译系统 v2.0 已就绪',
+        'color: #1e40af; font-size: 16px; font-weight: bold;');
+    console.log('%c功能模块: 文本翻译 | 翻译记忆库 | 双语语料库 | 实时字幕翻译 | 系统设置',
+        'color: #64748b;');
+    console.log('%c数据存储: localStorage | 翻译引擎: 模拟翻译 / 百度翻译 / DeepL / 有道翻译',
+        'color: #64748b;');
+    </script>
+</body>
+</html>
